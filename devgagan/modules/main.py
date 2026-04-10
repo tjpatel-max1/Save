@@ -292,6 +292,88 @@ async def batch_link(_, message):
     finally:
         users_loop.pop(user_id, None)
 
+@app.on_message(filters.command("topic") & filters.private)
+async def topic_link(_, message):
+    join = await subscribe(_, message)
+    if join == 1:
+        return
+
+    user_id = message.chat.id
+
+    if users_loop.get(user_id, False):
+        await app.send_message(
+            message.chat.id,
+            "You already have a process running. Please wait."
+        )
+        return
+
+    userbot = await initialize_userbot(user_id)
+    if not userbot:
+        await message.reply("Login required first.")
+        return
+
+    # 🔥 ASK START LINK
+    start = await app.ask(message.chat.id, "Send START link")
+    start_link = start.text.strip()
+
+    # 🔥 ASK END LINK
+    end = await app.ask(message.chat.id, "Send END link")
+    end_link = end.text.strip()
+
+    try:
+        # 🔥 EXTRACT DATA
+        parts1 = start_link.split("/")
+        parts2 = end_link.split("/")
+
+        chat_id = int('-100' + parts1[parts1.index('c') + 1])
+        thread_id = int(parts1[-2])   # ⭐ IMPORTANT
+
+        start_id = int(parts1[-1])
+        end_id = int(parts2[-1])
+
+        total = end_id - start_id + 1
+
+        msg = await app.send_message(
+            message.chat.id,
+            f"🚀 Topic process started\nProcessing: 0/{total}"
+        )
+
+        users_loop[user_id] = True
+
+        count = 0
+
+        for i in range(start_id, end_id + 1):
+            if not users_loop.get(user_id):
+                break
+
+            url = f"{'/'.join(start_link.split('/')[:-1])}/{i}"
+
+            temp = await app.send_message(message.chat.id, "Processing...")
+
+            await get_msg(
+                userbot,
+                user_id,
+                temp.id,
+                start_link,
+                i - start_id,
+                message,
+                thread_id=thread_id   # 🔥 MAGIC LINE
+            )
+
+            count += 1
+
+            await msg.edit_text(
+                f"🚀 Topic process started\nProcessing: {count}/{total}"
+            )
+
+        await msg.edit_text("✅ Topic completed successfully!")
+
+    except Exception as e:
+        await app.send_message(message.chat.id, f"Error: {e}")
+
+    finally:
+        users_loop.pop(user_id, None)
+        
 @app.on_message(filters.command("cancel"))
 async def stop_batch(_, message):
     user_id = message.chat.id

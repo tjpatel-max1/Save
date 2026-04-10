@@ -76,6 +76,7 @@ async def set_interval(user_id, interval_minutes=45):
     filters.regex(r'https?://(?:www\.)?t\.me/[^\s]+|tg://openmessage\?user_id=\w+&message_id=\d+')
     & filters.private
     & ~filters.command(["batch", "topic", "cancel"])
+    & ~filters.regex(r'^/')   # 🔥 ADD THIS LINE
 )
 async def single_link(_, message):
     user_id = message.chat.id

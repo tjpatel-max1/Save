@@ -314,40 +314,52 @@ async def topic_link(_, message):
         await message.reply("Login required first.")
         return
 
-    # 🔥 ASK START LINK
-    start = await app.ask(message.chat.id, "Send START link")
-    start_link = start.text.strip()
+    # 🔥 SAME AS /batch
+    for attempt in range(3):
+        start = await app.ask(message.chat.id, "Please send the start link.\n\n> Maximum tries 3")
+        start_link = start.text.strip()
+        s = start_link.split("/")[-1]
+        if s.isdigit():
+            start_id = int(s)
+            break
+        await app.send_message(message.chat.id, "Invalid link. Please send again ...")
+    else:
+        await app.send_message(message.chat.id, "Maximum attempts exceeded.")
+        return
 
-    # 🔥 ASK END LINK
-    end = await app.ask(message.chat.id, "Send END link")
-    end_link = end.text.strip()
+    # 🔥 SAME AS /batch (but asking END instead of count)
+    for attempt in range(3):
+        end = await app.ask(message.chat.id, "Please send the END link.")
+        end_link = end.text.strip()
+        e = end_link.split("/")[-1]
+        if e.isdigit():
+            end_id = int(e)
+            break
+        await app.send_message(message.chat.id, "Invalid link. Please send again ...")
+    else:
+        await app.send_message(message.chat.id, "Maximum attempts exceeded.")
+        return
+
+    # 🔥 Extract thread_id
+    thread_id = int(start_link.split("/")[-2])
+
+    total = end_id - start_id + 1
+
+    msg = await app.send_message(
+        message.chat.id,
+        f"🚀 Topic process started\nProcessing: 0/{total}"
+    )
+
+    users_loop[user_id] = True
 
     try:
-        # 🔥 EXTRACT DATA
-        parts1 = start_link.split("/")
-        parts2 = end_link.split("/")
-
-        chat_id = int('-100' + parts1[parts1.index('c') + 1])
-        thread_id = int(parts1[-2])   # ⭐ IMPORTANT
-
-        start_id = int(parts1[-1])
-        end_id = int(parts2[-1])
-
-        total = end_id - start_id + 1
-
-        msg = await app.send_message(
-            message.chat.id,
-            f"🚀 Topic process started\nProcessing: 0/{total}"
-        )
-
-        users_loop[user_id] = True
-
-        count = 0
+        userbot = await initialize_userbot(user_id)
 
         for i in range(start_id, end_id + 1):
             if not users_loop.get(user_id):
                 break
 
+            # 🔥 SAME AS /batch
             url = f"{'/'.join(start_link.split('/')[:-1])}/{i}"
 
             temp = await app.send_message(message.chat.id, "Processing...")
@@ -356,16 +368,14 @@ async def topic_link(_, message):
                 userbot,
                 user_id,
                 temp.id,
-                start_link,
-                i - start_id,
+                url,
+                0,
                 message,
-                thread_id=thread_id   # 🔥 MAGIC LINE
+                thread_id=thread_id   # 🔥 ONLY DIFFERENCE
             )
 
-            count += 1
-
             await msg.edit_text(
-                f"🚀 Topic process started\nProcessing: {count}/{total}"
+                f"🚀 Topic process started\nProcessing: {i - start_id + 1}/{total}"
             )
 
         await msg.edit_text("✅ Topic completed successfully!")
@@ -375,7 +385,6 @@ async def topic_link(_, message):
 
     finally:
         users_loop.pop(user_id, None)
-        
 @app.on_message(filters.command("cancel"))
 async def stop_batch(_, message):
     user_id = message.chat.id
